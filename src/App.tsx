@@ -14,8 +14,7 @@ import {
   Play, 
   Pause, 
   Loader2, 
-  AlertCircle,
-  FileText
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -113,7 +112,7 @@ export default function App() {
   const [fontSize, setFontSize] = useState(24);
   const [scrollSpeed, setScrollSpeed] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollAccumulatorRef = useRef(0);
@@ -140,7 +139,7 @@ export default function App() {
     const finalKey = import.meta.env.VITE_GEMINI_API_KEY;
     
     if (!finalKey) {
-      setError("API Key tidak ditemukan. Pastikan Anda sudah menambahkan VITE_GEMINI_API_KEY di .env atau Vercel.");
+      setError("API Key tidak ditemukan. Pastikan Anda sudah menambahkan VITE_GEMINI_API_KEY di Vercel.");
       return;
     }
 
@@ -225,13 +224,13 @@ export default function App() {
     ));
   };
 
-  const renderScriptContent = (mode: 'screen' | 'print') => {
-    const isPrint = mode === 'print';
-    const fSize = isPrint ? '12pt' : `${fontSize}px`;
+  // Render konten yang bisa dipakai untuk layar HP maupun untuk di-convert ke PDF
+  const renderScriptContent = (isForPdf = false) => {
+    const fSize = isForPdf ? '13pt' : `${fontSize}px`; // Ukuran font PDF dibuat lebih terbaca
 
     return (
-      <div className={cn(isPrint && "text-black bg-white w-full max-w-4xl mx-auto")}>
-        {isPrint && (
+      <div className={cn(isForPdf && "text-black bg-white")}>
+        {isForPdf && (
           <div className="text-center border-b-2 border-emerald-900 pb-4 mb-8">
             <h1 className="text-3xl font-bold font-serif text-emerald-900">Naskah Kultum Ramadhan</h1>
             <p className="text-sm text-stone-500 font-mono">{topic} • {audience}</p>
@@ -243,7 +242,7 @@ export default function App() {
           const cue = block.cue || block.cues || (block.type === 'cues' ? (block.text || block.content) : null);
 
           return (
-            <div key={idx} className={cn("mb-8", isPrint && "break-inside-avoid")}>
+            <div key={idx} className={cn("mb-8", isForPdf && "break-inside-avoid")}>
               {cue && (
                 <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-2 text-xs font-bold uppercase text-amber-800">
                   💡 {cue}
@@ -261,7 +260,7 @@ export default function App() {
               {block.arabic && block.arabic.length > 2 && (
                 <div className={cn(
                   "font-arabic text-right leading-loose mb-6 p-4 bg-stone-50 rounded border border-stone-200",
-                  isPrint ? "text-xl" : "text-3xl"
+                  isForPdf ? "text-xl" : "text-3xl"
                 )}>
                   {block.arabic}
                 </div>
@@ -284,7 +283,7 @@ export default function App() {
               {block.doa_arabic && block.doa_arabic.length > 2 && (
                 <div className={cn(
                   "mt-8 text-center p-6 rounded-2xl",
-                  isPrint ? "border-2 border-emerald-900" : "bg-emerald-900 text-white shadow-xl"
+                  isForPdf ? "border-2 border-emerald-900" : "bg-emerald-900 text-white shadow-xl"
                 )}>
                   <p className="font-arabic text-2xl leading-loose mb-4">{block.doa_arabic}</p>
                   <p className="font-bold text-amber-400">{block.salam || "Wassalamu'alaikum Wr. Wb."}</p>
@@ -294,7 +293,7 @@ export default function App() {
           );
         })}
 
-        {isPrint && (
+        {isForPdf && (
           <div className="mt-8 pt-4 border-t border-stone-200 text-center text-[10px] text-stone-400 font-mono">
             Dibuat secara otomatis dengan MimbarPro AI - by Joze Rizal
           </div>
@@ -303,286 +302,297 @@ export default function App() {
     );
   };
 
-  // --- SOLUSI BARU: Gunakan Native Browser Print ---
+  // --- SOLUSI UX MOBILE: ONE-CLICK DOWNLOAD ---
   const handleDownloadPdf = () => {
-    // Memanggil dialog Print bawaan browser. Jauh lebih ringan dan cepat!
-    window.print();
+    setIsDownloading(true);
+    
+    // Kita mengambil container rahasia yang tersembunyi namun sudah dirender utuh
+    const element = document.getElementById('pdf-secret-container');
+    
+    if (!element) {
+      alert("Terjadi kesalahan sistem, silakan muat ulang halaman.");
+      setIsDownloading(false);
+      return;
+    }
+
+    // Memanggil library PDF yang sangat umum digunakan
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    
+    script.onload = () => {
+      // OPTIMASI MOBILE: Scale diturunkan menjadi 1.2 agar ringan di RAM HP tapi tulisan tetap tajam
+      const opt = {
+        margin: [15, 15, 15, 15], 
+        filename: `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 1.2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      // @ts-ignore
+      window.html2pdf().set(opt).from(element).save().then(() => {
+        setIsDownloading(false);
+      }).catch((err: any) => {
+        console.error("PDF Error:", err);
+        alert("Gagal memproses PDF di perangkat ini. Coba gunakan browser Chrome.");
+        setIsDownloading(false);
+      });
+    };
+    
+    script.onerror = () => {
+      alert("Gagal memuat sistem PDF. Pastikan internet Anda stabil.");
+      setIsDownloading(false);
+    };
+    
+    document.body.appendChild(script);
   };
 
   return (
-    <>
-      {/* Bagian ini adalah UI Utama Aplikasi.
-        Terdapat class "print:hidden" yang artinya bagian ini akan otomatis
-        hilang/disembunyikan oleh browser SAAT fitur Print dijalankan.
-      */}
-      <div className="min-h-screen flex flex-col print:hidden">
-        {/* HEADER */}
-        <header className="bg-emerald-900 border-b border-emerald-800 sticky top-0 z-30 shadow-md pt-[env(safe-area-inset-top)]">
-          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-emerald-800 border border-emerald-700 text-amber-400 p-2 rounded-lg shadow-inner">
-                <Moon className="w-5 h-5 fill-current" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight text-white">
-                Mimbar<span className="text-amber-400">Pro</span>
-                <span className="text-[10px] font-normal text-emerald-100 bg-emerald-800/50 border border-emerald-700 px-2 py-0.5 rounded-full ml-2 uppercase tracking-wider">Ramadhan</span>
-              </h1>
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+      {/* HEADER */}
+      <header className="bg-emerald-900 border-b border-emerald-800 sticky top-0 z-30 shadow-md pt-[env(safe-area-inset-top)]">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="bg-emerald-800 border border-emerald-700 text-amber-400 p-2 rounded-lg shadow-inner">
+              <Moon className="w-5 h-5 fill-current" />
             </div>
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              Mimbar<span className="text-amber-400">Pro</span>
+              <span className="text-[10px] font-normal text-emerald-100 bg-emerald-800/50 border border-emerald-700 px-2 py-0.5 rounded-full ml-2 uppercase tracking-wider">Ramadhan</span>
+            </h1>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="flex-1 max-w-5xl mx-auto px-4 py-8 relative w-full">
-          <AnimatePresence mode="wait">
-            {step === 'input' && (
-              <motion.section
-                key="input"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="max-w-2xl mx-auto space-y-6 w-full"
-              >
-                <div className="bg-white p-8 rounded-2xl shadow-xl border border-stone-200 overflow-hidden relative">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-600 via-amber-500 to-emerald-600"></div>
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-emerald-900 font-serif">Studio Naskah</h2>
-                    <p className="text-stone-500 mt-2">Racik materi dakwah mendalam dengan kecerdasan buatan.</p>
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-8 relative w-full">
+        <AnimatePresence mode="wait">
+          {step === 'input' && (
+            <motion.section
+              key="input"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="max-w-2xl mx-auto space-y-6 w-full"
+            >
+              <div className="bg-white p-8 rounded-2xl shadow-xl border border-stone-200 overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-600 via-amber-500 to-emerald-600"></div>
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-emerald-900 font-serif">Studio Naskah</h2>
+                  <p className="text-stone-500 mt-2">Racik materi dakwah mendalam dengan kecerdasan buatan.</p>
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 text-red-700 border border-red-100 p-4 rounded-xl flex items-start gap-3 text-sm font-medium mb-6">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <p>{error}</p>
+                  </div>
+                )}
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Topik Kajian</label>
+                    <input
+                      type="text"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                    />
+                    <select
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="mt-2 w-full p-2 bg-stone-100 text-sm rounded border border-stone-200 outline-none text-stone-600"
+                    >
+                      <option value="">...pilih inspirasi topik Ramadhan</option>
+                      {RAMADHAN_TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </div>
 
-                  {error && (
-                    <div className="bg-red-50 text-red-700 border border-red-100 p-4 rounded-xl flex items-start gap-3 text-sm font-medium mb-6">
-                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p>{error}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Topik Kajian</label>
-                      <input
-                        type="text"
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        className="w-full p-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
-                      />
+                      <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Audiens</label>
                       <select
-                        onChange={(e) => setTopic(e.target.value)}
-                        className="mt-2 w-full p-2 bg-stone-100 text-sm rounded border border-stone-200 outline-none text-stone-600"
+                        value={audience}
+                        onChange={(e) => setAudience(e.target.value)}
+                        className="w-full p-3 border border-stone-300 rounded-lg bg-white outline-none"
                       >
-                        <option value="">...pilih inspirasi topik Ramadhan</option>
-                        {RAMADHAN_TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
+                        <option>Umum</option>
+                        <option>Anak Muda / Milenial</option>
+                        <option>Bapak-bapak</option>
+                        <option>Ibu-ibu Pengajian</option>
                       </select>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Audiens</label>
-                        <select
-                          value={audience}
-                          onChange={(e) => setAudience(e.target.value)}
-                          className="w-full p-3 border border-stone-300 rounded-lg bg-white outline-none"
-                        >
-                          <option>Umum</option>
-                          <option>Anak Muda / Milenial</option>
-                          <option>Bapak-bapak</option>
-                          <option>Ibu-ibu Pengajian</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Durasi</label>
-                        <select
-                          value={duration}
-                          onChange={(e) => setDuration(e.target.value)}
-                          className="w-full p-3 border border-stone-300 rounded-lg bg-white outline-none"
-                        >
-                          <option>3 Menit</option>
-                          <option>5 Menit</option>
-                          <option>7 Menit</option>
-                          <option>15 Menit</option>
-                          <option>20 Menit</option>
-                        </select>
-                      </div>
-                    </div>
-
                     <div>
-                      <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Tone</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['Santai', 'Tegas', 'Menyentuh', 'Semangat'].map(t => (
-                          <button
-                            key={t}
-                            onClick={() => setTone(t)}
-                            className={cn(
-                              "p-2 text-sm rounded border transition",
-                              tone === t
-                                ? "bg-emerald-800 text-white border-emerald-800"
-                                : "bg-white border-stone-200 hover:bg-emerald-50"
-                            )}
-                          >
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleGenerate}
-                      className="w-full py-4 font-bold rounded-xl shadow-lg bg-gradient-to-r from-emerald-700 to-emerald-900 text-white hover:from-emerald-800 hover:to-emerald-950 transition transform active:scale-[0.98] flex justify-center items-center gap-2 mt-2"
-                    >
-                      <Wand2 className="w-5 h-5 text-amber-400" /> Buat Naskah Sekarang
-                    </button>
-                  </div>
-                </div>
-              </motion.section>
-            )}
-
-            {step === 'loading' && (
-              <motion.section
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-96 flex flex-col items-center justify-center text-center"
-              >
-                <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mb-4" />
-                <p className="text-emerald-900 font-bold text-lg">Sedang Meracik Naskah...</p>
-                <p className="text-stone-500 text-sm">Menyusun dalil dan narasi dakwah...</p>
-              </motion.section>
-            )}
-
-            {step === 'result' && (
-              <motion.section
-                key="result"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col h-[calc(100vh-140px)] border border-stone-300 rounded-2xl shadow-2xl overflow-hidden bg-white w-full"
-              >
-                <div className="bg-emerald-950 text-stone-300 p-4 flex items-center justify-between z-10 border-b border-emerald-900">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => setStep('input')}
-                      className="flex items-center gap-2 hover:text-white transition text-sm font-medium"
-                    >
-                      <RotateCcw className="w-4 h-4" /> <span className="hidden md:inline">Reset</span>
-                    </button>
-                    <div className="h-6 w-px bg-emerald-800"></div>
-                    <div className="flex items-center gap-1 bg-emerald-900/50 rounded-lg p-1 border border-emerald-800">
-                      <button
-                        onClick={() => setFontSize(prev => Math.max(16, prev - 2))}
-                        className="p-1 hover:bg-emerald-800 rounded text-white"
+                      <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Durasi</label>
+                      <select
+                        value={duration}
+                        onChange={(e) => setDuration(e.target.value)}
+                        className="w-full p-3 border border-stone-300 rounded-lg bg-white outline-none"
                       >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-                      <span className="text-xs font-mono w-6 text-center text-amber-400">{fontSize}</span>
-                      <button
-                        onClick={() => setFontSize(prev => Math.min(48, prev + 2))}
-                        className="p-1 hover:bg-emerald-800 rounded text-white"
-                      >
-                        <ChevronUp className="w-4 h-4" />
-                      </button>
+                        <option>3 Menit</option>
+                        <option>5 Menit</option>
+                        <option>7 Menit</option>
+                        <option>15 Menit</option>
+                        <option>20 Menit</option>
+                      </select>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setShowPreview(true)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg border border-emerald-700 shadow-sm transition"
-                    >
-                      <FileDown className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold uppercase tracking-wide hidden md:inline">Download PDF</span>
-                    </button>
-                    <div className="w-px h-6 bg-emerald-800"></div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="5"
-                        step="1"
-                        value={scrollSpeed}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          setScrollSpeed(val);
-                          setIsScrolling(val > 0);
-                        }}
-                        className="w-16 md:w-20 h-1.5 bg-emerald-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                      />
-                      <button
-                        onClick={() => {
-                          if (!isScrolling && scrollSpeed === 0) setScrollSpeed(1);
-                          setIsScrolling(!isScrolling);
-                        }}
-                        className="p-2 rounded-full shadow-lg bg-emerald-600 text-white"
-                      >
-                        {isScrolling ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </button>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">Tone</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Santai', 'Tegas', 'Menyentuh', 'Semangat'].map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setTone(t)}
+                          className={cn(
+                            "p-2 text-sm rounded border transition",
+                            tone === t
+                              ? "bg-emerald-800 text-white border-emerald-800"
+                              : "bg-white border-stone-200 hover:bg-emerald-50"
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </div>
 
-                <div
-                  ref={scrollAreaRef}
-                  className="flex-1 bg-[#FDFBF7] relative overflow-y-auto p-6 md:p-12 scroll-smooth"
-                >
-                  {renderScriptContent('screen')}
-                  {isScrolling && (
-                    <div className="fixed bottom-8 right-8 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse z-20 font-bold text-xs flex gap-2 items-center">
-                      <div className="w-2 h-2 bg-white rounded-full animate-ping"></div> ON AIR
-                    </div>
-                  )}
+                  <button
+                    onClick={handleGenerate}
+                    className="w-full py-4 font-bold rounded-xl shadow-lg bg-gradient-to-r from-emerald-700 to-emerald-900 text-white hover:from-emerald-800 hover:to-emerald-950 transition transform active:scale-[0.98] flex justify-center items-center gap-2 mt-2"
+                  >
+                    <Wand2 className="w-5 h-5 text-amber-400" /> Buat Naskah Sekarang
+                  </button>
                 </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-        </main>
+              </div>
+            </motion.section>
+          )}
 
-        {/* PREVIEW MODAL */}
-        <AnimatePresence>
-          {showPreview && (
-            <motion.div
+          {step === 'loading' && (
+            <motion.section
+              key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[50] bg-stone-800/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 overflow-y-auto"
+              className="h-96 flex flex-col items-center justify-center text-center"
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white w-full max-w-[210mm] min-h-[90vh] shadow-2xl rounded-sm flex flex-col relative"
+              <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mb-4" />
+              <p className="text-emerald-900 font-bold text-lg">Sedang Meracik Naskah...</p>
+              <p className="text-stone-500 text-sm">Menyusun dalil dan narasi dakwah...</p>
+            </motion.section>
+          )}
+
+          {step === 'result' && (
+            <motion.section
+              key="result"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col h-[calc(100vh-140px)] border border-stone-300 rounded-2xl shadow-2xl overflow-hidden bg-white w-full relative"
+            >
+              <div className="bg-emerald-950 text-stone-300 p-4 flex items-center justify-between z-10 border-b border-emerald-900">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setStep('input')}
+                    className="flex items-center gap-2 hover:text-white transition text-sm font-medium"
+                  >
+                    <RotateCcw className="w-4 h-4" /> <span className="hidden md:inline">Reset</span>
+                  </button>
+                  <div className="h-6 w-px bg-emerald-800"></div>
+                  <div className="flex items-center gap-1 bg-emerald-900/50 rounded-lg p-1 border border-emerald-800">
+                    <button
+                      onClick={() => setFontSize(prev => Math.max(16, prev - 2))}
+                      className="p-1 hover:bg-emerald-800 rounded text-white"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-mono w-6 text-center text-amber-400">{fontSize}</span>
+                    <button
+                      onClick={() => setFontSize(prev => Math.min(48, prev + 2))}
+                      className="p-1 hover:bg-emerald-800 rounded text-white"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleDownloadPdf}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-lg font-bold shadow-sm transition active:scale-95"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    <span className="text-xs uppercase tracking-wide hidden sm:inline">Download PDF</span>
+                  </button>
+                  <div className="w-px h-6 bg-emerald-800"></div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="5"
+                      step="1"
+                      value={scrollSpeed}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setScrollSpeed(val);
+                        setIsScrolling(val > 0);
+                      }}
+                      className="w-16 md:w-20 h-1.5 bg-emerald-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!isScrolling && scrollSpeed === 0) setScrollSpeed(1);
+                        setIsScrolling(!isScrolling);
+                      }}
+                      className="p-2 rounded-full shadow-lg bg-emerald-600 text-white"
+                    >
+                      {isScrolling ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                ref={scrollAreaRef}
+                className="flex-1 bg-[#FDFBF7] relative overflow-y-auto p-6 md:p-12 scroll-smooth"
               >
-                <div className="bg-emerald-900 text-white p-4 flex justify-between items-center sticky top-0 z-10 shadow-md">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-amber-400" />
-                    <span className="font-bold text-sm">Pratinjau PDF</span>
+                {renderScriptContent(false)}
+                {isScrolling && (
+                  <div className="fixed bottom-8 right-8 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse z-20 font-bold text-xs flex gap-2 items-center">
+                    <div className="w-2 h-2 bg-white rounded-full animate-ping"></div> ON AIR
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowPreview(false)}
-                      className="px-4 py-2 bg-emerald-800 hover:bg-emerald-700 rounded-lg text-sm"
-                    >
-                      Kembali
-                    </button>
-                    <button
-                      onClick={handleDownloadPdf}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-lg font-bold flex items-center gap-2"
-                    >
-                      Cetak / Simpan PDF
-                    </button>
-                  </div>
-                </div>
-                <div className="bg-white flex-1 p-10 overflow-y-auto">
-                  {renderScriptContent('print')}
-                </div>
-              </motion.div>
-            </motion.div>
+                )}
+              </div>
+            </motion.section>
           )}
         </AnimatePresence>
-      </div>
+      </main>
 
-      {/* Bagian ini adalah AREA KHUSUS PRINT.
-        Secara default disembunyikan (hidden), tetapi akan MUNCUL (print:block)
-        saat proses Print dijalankan, sehingga hanya isi ini yang masuk PDF.
+      {/* CONTAINER RAHASIA UNTUK PDF 
+          Sengaja di-render di balik layar (z-index negatif dan opacity 0)
+          agar strukturnya siap dibaca oleh script PDF tanpa merusak tampilan HP.
       */}
-      <div className="hidden print:block w-full bg-white text-black p-8">
-        {step === 'result' && renderScriptContent('print')}
-      </div>
-    </>
+      {step === 'result' && (
+        <div className="fixed top-0 left-0 w-[210mm] z-[-50] opacity-0 pointer-events-none">
+          <div id="pdf-secret-container" className="p-8 bg-white">
+            {renderScriptContent(true)}
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY LOADING SAAT DOWNLOAD PDF */}
+      <AnimatePresence>
+        {isDownloading && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-emerald-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-white"
+          >
+            <Loader2 className="w-16 h-16 animate-spin mb-6 text-amber-400" />
+            <h3 className="font-serif font-bold text-2xl mb-2">Menyiapkan Dokumen</h3>
+            <p className="text-emerald-200/80 text-sm">Sedang merapikan tata letak PDF Anda...</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
