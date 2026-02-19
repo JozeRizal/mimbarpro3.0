@@ -224,24 +224,16 @@ export default function App() {
     ));
   };
 
-  const renderScriptContent = (isForPdf = false) => {
-    const fSize = isForPdf ? '13pt' : `${fontSize}px`; 
-
+  // Render konten layar (Screen View)
+  const renderScriptContent = () => {
     return (
-      <div className={cn(isForPdf && "text-black bg-white w-full max-w-4xl")}>
-        {isForPdf && (
-          <div className="text-center border-b-2 border-emerald-900 pb-4 mb-8">
-            <h1 className="text-3xl font-bold font-serif text-emerald-900">Naskah Kultum Ramadhan</h1>
-            <p className="text-sm text-stone-500 font-mono">{topic} • {audience}</p>
-          </div>
-        )}
-
+      <div className="text-black bg-[#FDFBF7] w-full max-w-4xl">
         {script.map((block, idx) => {
           const mainText = block.text || block.content || block.content_text || block.explanation || block.meat || block.story;
           const cue = block.cue || block.cues || (block.type === 'cues' ? (block.text || block.content) : null);
 
           return (
-            <div key={idx} className={cn("mb-8", isForPdf && "break-inside-avoid page-break-inside-avoid")}>
+            <div key={idx} className="mb-8">
               {cue && (
                 <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-2 text-xs font-bold uppercase text-amber-800">
                   💡 {cue}
@@ -257,15 +249,12 @@ export default function App() {
               )}
 
               {block.arabic && block.arabic.length > 2 && (
-                <div className={cn(
-                  "font-arabic text-right leading-loose mb-6 p-4 bg-stone-50 rounded border border-stone-200",
-                  isForPdf ? "text-xl" : "text-3xl"
-                )}>
+                <div className="font-arabic text-right leading-loose mb-6 p-4 bg-stone-50 rounded border border-stone-200 text-3xl">
                   {block.arabic}
                 </div>
               )}
 
-              <div style={{ fontSize: fSize }} className="font-serif leading-relaxed text-stone-900">
+              <div style={{ fontSize: `${fontSize}px` }} className="font-serif leading-relaxed text-stone-900">
                 {block.greeting && <p className="font-bold text-emerald-800 mb-2">{block.greeting}</p>}
                 {formatLongText(mainText)}
 
@@ -280,10 +269,7 @@ export default function App() {
               </div>
 
               {block.doa_arabic && block.doa_arabic.length > 2 && (
-                <div className={cn(
-                  "mt-8 text-center p-6 rounded-2xl",
-                  isForPdf ? "border-2 border-emerald-900" : "bg-emerald-900 text-white shadow-xl"
-                )}>
+                <div className="mt-8 text-center p-6 rounded-2xl bg-emerald-900 text-white shadow-xl">
                   <p className="font-arabic text-2xl leading-loose mb-4">{block.doa_arabic}</p>
                   <p className="font-bold text-amber-400">{block.salam || "Wassalamu'alaikum Wr. Wb."}</p>
                 </div>
@@ -291,66 +277,173 @@ export default function App() {
             </div>
           );
         })}
-
-        {isForPdf && (
-          <div className="mt-8 pt-4 border-t border-stone-200 text-center text-[10px] text-stone-400 font-mono">
-            Dibuat secara otomatis dengan MimbarPro AI - by Joze Rizal
-          </div>
-        )}
       </div>
     );
   };
 
+  // --- SOLUSI ANTI-CRASH OKLCH UNTUK PDF ---
+  // Kita merender murni HTML/CSS jadul (Hex) tanpa ada campur tangan Tailwind
+  const generatePdfHtmlString = () => {
+    let html = `
+      <div style="font-family: Georgia, serif; color: #1c1917; background-color: #ffffff; padding: 20px 40px; max-width: 800px; margin: 0 auto;">
+        <div style="text-align: center; border-bottom: 2px solid #064e3b; padding-bottom: 16px; margin-bottom: 32px;">
+          <h1 style="font-size: 28px; font-weight: bold; color: #064e3b; margin: 0 0 8px 0; font-family: serif;">Naskah Kultum Ramadhan</h1>
+          <p style="font-size: 14px; color: #78716c; font-family: monospace; margin: 0;">${topic} &bull; ${audience}</p>
+        </div>
+    `;
+
+    script.forEach(block => {
+      const mainText = block.text || block.content || block.content_text || block.explanation || block.meat || block.story;
+      const cue = block.cue || block.cues || (block.type === 'cues' ? (block.text || block.content) : null);
+
+      html += `<div style="margin-bottom: 32px; page-break-inside: avoid;">`;
+
+      if (cue) {
+        html += `<div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 8px 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; color: #92400e; margin-bottom: 16px; font-family: sans-serif;">💡 ${cue}</div>`;
+      }
+
+      if (block.title) {
+        html += `
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+            <div style="flex: 1; height: 1px; background-color: #d6d3d1;"></div>
+            <span style="font-size: 10px; font-weight: bold; color: #a8a29e; text-transform: uppercase; letter-spacing: 2px; font-family: sans-serif;">${block.title}</span>
+            <div style="flex: 1; height: 1px; background-color: #d6d3d1;"></div>
+          </div>
+        `;
+      }
+
+      if (block.arabic && block.arabic.length > 2) {
+        html += `<div style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; line-height: 2.2; margin-bottom: 24px; padding: 16px; background-color: #fafaf9; border-radius: 8px; border: 1px solid #e7e5e4; font-size: 22px;">${block.arabic}</div>`;
+      }
+
+      if (mainText) {
+        html += `<div style="font-family: Georgia, serif; line-height: 1.8; color: #1c1917; font-size: 13pt; margin-bottom: 16px;">`;
+        if (block.greeting) {
+          html += `<p style="font-weight: bold; color: #064e3b; margin-bottom: 8px;">${block.greeting}</p>`;
+        }
+
+        const sentences = mainText.split('. ');
+        let currentPara = "";
+        sentences.forEach((sentence, index) => {
+          const s = sentence + (index < sentences.length - 1 ? '. ' : '');
+          if ((currentPara + s).length > 450) {
+            if (currentPara) {
+              html += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
+            }
+            currentPara = s;
+          } else {
+            currentPara += s;
+          }
+        });
+        if (currentPara) {
+          html += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
+        }
+        
+        html += `</div>`;
+      }
+
+      if (block.dalil && (block.dalil.arabic || block.dalil.meaning)) {
+        html += `
+          <div style="margin-top: 16px; padding: 16px; border: 1px solid #e7e5e4; border-radius: 12px; background-color: #ffffff;">
+            <span style="background-color: #d1fae5; color: #065f46; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; font-size: 10px; font-family: sans-serif;">Dalil</span>
+            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; font-size: 20px; margin-top: 12px; margin-bottom: 8px; line-height: 2;">${block.dalil.arabic || ''}</p>
+            <p style="font-size: 12px; color: #b45309; font-weight: bold; margin-top: 8px; margin-bottom: 4px; font-family: sans-serif;">${block.dalil.source || ''}</p>
+            <p style="font-size: 14px; color: #78716c; font-style: italic; margin-top: 4px; margin-bottom: 0;">"${block.dalil.meaning || ''}"</p>
+          </div>
+        `;
+      }
+
+      if (block.doa_arabic && block.doa_arabic.length > 2) {
+        html += `
+          <div style="margin-top: 32px; text-align: center; padding: 24px; border-radius: 16px; border: 2px solid #064e3b; page-break-inside: avoid;">
+            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 26px; line-height: 2.2; margin-bottom: 16px;">${block.doa_arabic}</p>
+            <p style="font-weight: bold; color: #b45309; font-family: sans-serif; font-size: 16px;">${block.salam || "Wassalamu'alaikum Wr. Wb."}</p>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+    });
+
+    html += `
+        <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e7e5e4; text-align: center; font-size: 10px; color: #a8a29e; font-family: monospace;">
+          Dibuat secara otomatis dengan MimbarPro AI - by Joze Rizal
+        </div>
+      </div>
+    `;
+
+    return html;
+  };
+
   const handleDownloadPdf = () => {
     setIsDownloading(true);
-    
-    // Pastikan kita memanggil ID yang benar dari DOM
-    const element = document.getElementById('pdf-secret-container');
-    
-    if (!element) {
-      alert("Terjadi kesalahan sistem, silakan muat ulang halaman.");
+
+    const htmlContent = generatePdfHtmlString();
+
+    // 1. Buat iframe isolasi agar kebal dari Tailwind dan error oklch
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-10000px'; 
+    iframe.style.width = '1024px'; // Paksa ukuran desktop
+    iframe.style.height = '1000px';
+    document.body.appendChild(iframe);
+
+    const idoc = iframe.contentWindow?.document;
+    if (!idoc) {
+      alert("Gagal memproses dokumen. Coba refresh halaman.");
       setIsDownloading(false);
       return;
     }
 
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-    
-    script.onload = () => {
-      // OPTIMASI KHUSUS MOBILE
-      const opt = {
-        margin: 10, // Diubah menjadi angka tunggal agar stabil di semua browser HP
-        filename: `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { 
-          scale: 1.5, // Kualitas medium-high, tidak memberatkan RAM HP
-          useCORS: true, 
-          logging: false,
-          windowWidth: 1024 // Paksa render di ukuran desktop agar teks tidak terlipat berantakan
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+    // 2. Suntikkan HTML murni dan Script PDF ke dalam iframe
+    idoc.open();
+    idoc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+        </head>
+        <body style="margin: 0; background: #ffffff;">
+          <div id="pdf-root">${htmlContent}</div>
+        </body>
+      </html>
+    `);
+    idoc.close();
 
+    // 3. Eksekusi PDF dari dalam iframe secara otomatis
+    const checkAndGenerate = () => {
       // @ts-ignore
-      window.html2pdf().set(opt).from(element).save().then(() => {
-        setIsDownloading(false);
-      }).catch((err: any) => {
-        console.error("PDF Error:", err);
-        alert(`Gagal memproses PDF: ${err.message || 'Error tidak diketahui'}. Silakan coba lagi.`);
-        setIsDownloading(false);
-      });
+      if (iframe.contentWindow && iframe.contentWindow.html2pdf) {
+        const element = idoc.getElementById('pdf-root');
+        const opt = {
+          margin: [15, 10, 15, 10], // Margin atas, kanan, bawah, kiri
+          filename: `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 1.5, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // @ts-ignore
+        iframe.contentWindow.html2pdf().set(opt).from(element).save().then(() => {
+          setIsDownloading(false);
+          document.body.removeChild(iframe); // Bersihkan iframe setelah selesai
+        }).catch((err: any) => {
+          console.error(err);
+          alert("Gagal memproses PDF.");
+          setIsDownloading(false);
+          document.body.removeChild(iframe);
+        });
+      } else {
+        setTimeout(checkAndGenerate, 200); // Tunggu sampai script termuat
+      }
     };
-    
-    script.onerror = () => {
-      alert("Gagal memuat sistem pembuat PDF. Pastikan internet Anda stabil.");
-      setIsDownloading(false);
-    };
-    
-    document.body.appendChild(script);
+
+    setTimeout(checkAndGenerate, 200);
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-[#FDFBF7]">
       {/* HEADER */}
       <header className="bg-emerald-900 border-b border-emerald-800 sticky top-0 z-30 shadow-md pt-[env(safe-area-inset-top)]">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -496,7 +589,7 @@ export default function App() {
                     onClick={() => setStep('input')}
                     className="flex items-center gap-2 hover:text-white transition text-sm font-medium"
                   >
-                    <RotateCcw className="w-4 h-4" /> <span className="hidden md:inline">Reset</span>
+                    <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline">Reset</span>
                   </button>
                   <div className="h-6 w-px bg-emerald-800"></div>
                   <div className="flex items-center gap-1 bg-emerald-900/50 rounded-lg p-1 border border-emerald-800">
@@ -553,9 +646,9 @@ export default function App() {
 
               <div
                 ref={scrollAreaRef}
-                className="flex-1 bg-[#FDFBF7] relative overflow-y-auto p-6 md:p-12 scroll-smooth"
+                className="flex-1 relative overflow-y-auto p-6 md:p-12 scroll-smooth"
               >
-                {renderScriptContent(false)}
+                {renderScriptContent()}
                 {isScrolling && (
                   <div className="fixed bottom-8 right-8 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse z-20 font-bold text-xs flex gap-2 items-center">
                     <div className="w-2 h-2 bg-white rounded-full animate-ping"></div> ON AIR
@@ -566,18 +659,6 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
-
-      {/* CONTAINER RAHASIA UNTUK PDF 
-          Digeser 10.000 pixel ke kiri agar tidak terlihat di layar,
-          tapi statusnya TETAP DIREKAYASA OLEH BROWSER dengan opacity 100%
-      */}
-      {step === 'result' && (
-        <div className="absolute top-[0px] left-[-10000px] w-[210mm] z-0 overflow-visible">
-          <div id="pdf-secret-container" className="p-8 bg-white text-black min-h-[297mm]">
-            {renderScriptContent(true)}
-          </div>
-        </div>
-      )}
 
       {/* OVERLAY LOADING SAAT DOWNLOAD PDF */}
       <AnimatePresence>
@@ -590,7 +671,7 @@ export default function App() {
           >
             <Loader2 className="w-16 h-16 animate-spin mb-6 text-amber-400" />
             <h3 className="font-serif font-bold text-2xl mb-2">Menyiapkan Dokumen</h3>
-            <p className="text-emerald-200/80 text-sm px-8 text-center">Sedang memproses PDF, mohon jangan tutup halaman ini...</p>
+            <p className="text-emerald-200/80 text-sm px-8 text-center">Sedang merapikan tata letak PDF Anda, mohon tunggu...</p>
           </motion.div>
         )}
       </AnimatePresence>
