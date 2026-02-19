@@ -281,14 +281,26 @@ export default function App() {
     );
   };
 
-  // --- SOLUSI ANTI-CRASH OKLCH UNTUK PDF ---
-  // Kita merender murni HTML/CSS jadul (Hex) tanpa ada campur tangan Tailwind
-  const generatePdfHtmlString = () => {
-    let html = `
+  // --- SOLUSI ANTI-CRASH & BLOB MOBILE UNTUK PDF ---
+  const handleDownloadPdf = () => {
+    setIsDownloading(true);
+
+    // Fungsi kecil untuk memastikan string tidak merusak kode HTML
+    const escapeHTML = (str?: string) => {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        (tag) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        }[tag] || tag)
+      );
+    };
+
+    // Merakit struktur HTML murni khusus cetak (Bebas dari Tailwind)
+    let htmlContent = `
       <div style="font-family: Georgia, serif; color: #1c1917; background-color: #ffffff; padding: 20px 40px; max-width: 800px; margin: 0 auto;">
         <div style="text-align: center; border-bottom: 2px solid #064e3b; padding-bottom: 16px; margin-bottom: 32px;">
           <h1 style="font-size: 28px; font-weight: bold; color: #064e3b; margin: 0 0 8px 0; font-family: serif;">Naskah Kultum Ramadhan</h1>
-          <p style="font-size: 14px; color: #78716c; font-family: monospace; margin: 0;">${topic} &bull; ${audience}</p>
+          <p style="font-size: 14px; color: #78716c; font-family: monospace; margin: 0;">${escapeHTML(topic)} &bull; ${escapeHTML(audience)}</p>
         </div>
     `;
 
@@ -296,150 +308,184 @@ export default function App() {
       const mainText = block.text || block.content || block.content_text || block.explanation || block.meat || block.story;
       const cue = block.cue || block.cues || (block.type === 'cues' ? (block.text || block.content) : null);
 
-      html += `<div style="margin-bottom: 32px; page-break-inside: avoid;">`;
+      htmlContent += `<div style="margin-bottom: 32px; page-break-inside: avoid;">`;
 
       if (cue) {
-        html += `<div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 8px 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; color: #92400e; margin-bottom: 16px; font-family: sans-serif;">💡 ${cue}</div>`;
+        htmlContent += `<div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 8px 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; color: #92400e; margin-bottom: 16px; font-family: sans-serif;">💡 ${escapeHTML(cue)}</div>`;
       }
 
       if (block.title) {
-        html += `
+        htmlContent += `
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
             <div style="flex: 1; height: 1px; background-color: #d6d3d1;"></div>
-            <span style="font-size: 10px; font-weight: bold; color: #a8a29e; text-transform: uppercase; letter-spacing: 2px; font-family: sans-serif;">${block.title}</span>
+            <span style="font-size: 10px; font-weight: bold; color: #a8a29e; text-transform: uppercase; letter-spacing: 2px; font-family: sans-serif;">${escapeHTML(block.title)}</span>
             <div style="flex: 1; height: 1px; background-color: #d6d3d1;"></div>
           </div>
         `;
       }
 
       if (block.arabic && block.arabic.length > 2) {
-        html += `<div style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; line-height: 2.2; margin-bottom: 24px; padding: 16px; background-color: #fafaf9; border-radius: 8px; border: 1px solid #e7e5e4; font-size: 22px;">${block.arabic}</div>`;
+        htmlContent += `<div style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; line-height: 2.2; margin-bottom: 24px; padding: 16px; background-color: #fafaf9; border-radius: 8px; border: 1px solid #e7e5e4; font-size: 22px;">${escapeHTML(block.arabic)}</div>`;
       }
 
       if (mainText) {
-        html += `<div style="font-family: Georgia, serif; line-height: 1.8; color: #1c1917; font-size: 13pt; margin-bottom: 16px;">`;
+        htmlContent += `<div style="font-family: Georgia, serif; line-height: 1.8; color: #1c1917; font-size: 13pt; margin-bottom: 16px;">`;
         if (block.greeting) {
-          html += `<p style="font-weight: bold; color: #064e3b; margin-bottom: 8px;">${block.greeting}</p>`;
+          htmlContent += `<p style="font-weight: bold; color: #064e3b; margin-bottom: 8px;">${escapeHTML(block.greeting)}</p>`;
         }
 
-        const sentences = mainText.split('. ');
+        const sentences = escapeHTML(mainText).split('. ');
         let currentPara = "";
         sentences.forEach((sentence, index) => {
           const s = sentence + (index < sentences.length - 1 ? '. ' : '');
           if ((currentPara + s).length > 450) {
-            if (currentPara) {
-              html += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
-            }
+            if (currentPara) htmlContent += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
             currentPara = s;
           } else {
             currentPara += s;
           }
         });
-        if (currentPara) {
-          html += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
-        }
-        
-        html += `</div>`;
+        if (currentPara) htmlContent += `<p style="margin-bottom: 16px; text-align: justify;">${currentPara}</p>`;
+        htmlContent += `</div>`;
       }
 
       if (block.dalil && (block.dalil.arabic || block.dalil.meaning)) {
-        html += `
+        htmlContent += `
           <div style="margin-top: 16px; padding: 16px; border: 1px solid #e7e5e4; border-radius: 12px; background-color: #ffffff;">
             <span style="background-color: #d1fae5; color: #065f46; font-weight: bold; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; font-size: 10px; font-family: sans-serif;">Dalil</span>
-            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; font-size: 20px; margin-top: 12px; margin-bottom: 8px; line-height: 2;">${block.dalil.arabic || ''}</p>
-            <p style="font-size: 12px; color: #b45309; font-weight: bold; margin-top: 8px; margin-bottom: 4px; font-family: sans-serif;">${block.dalil.source || ''}</p>
-            <p style="font-size: 14px; color: #78716c; font-style: italic; margin-top: 4px; margin-bottom: 0;">"${block.dalil.meaning || ''}"</p>
+            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; text-align: right; font-size: 20px; margin-top: 12px; margin-bottom: 8px; line-height: 2;">${escapeHTML(block.dalil.arabic || '')}</p>
+            <p style="font-size: 12px; color: #b45309; font-weight: bold; margin-top: 8px; margin-bottom: 4px; font-family: sans-serif;">${escapeHTML(block.dalil.source || '')}</p>
+            <p style="font-size: 14px; color: #78716c; font-style: italic; margin-top: 4px; margin-bottom: 0;">"${escapeHTML(block.dalil.meaning || '')}"</p>
           </div>
         `;
       }
 
       if (block.doa_arabic && block.doa_arabic.length > 2) {
-        html += `
+        htmlContent += `
           <div style="margin-top: 32px; text-align: center; padding: 24px; border-radius: 16px; border: 2px solid #064e3b; page-break-inside: avoid;">
-            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 26px; line-height: 2.2; margin-bottom: 16px;">${block.doa_arabic}</p>
-            <p style="font-weight: bold; color: #b45309; font-family: sans-serif; font-size: 16px;">${block.salam || "Wassalamu'alaikum Wr. Wb."}</p>
+            <p style="font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 26px; line-height: 2.2; margin-bottom: 16px;">${escapeHTML(block.doa_arabic)}</p>
+            <p style="font-weight: bold; color: #b45309; font-family: sans-serif; font-size: 16px;">${escapeHTML(block.salam || "Wassalamu'alaikum Wr. Wb.")}</p>
           </div>
         `;
       }
 
-      html += `</div>`;
+      htmlContent += `</div>`;
     });
 
-    html += `
+    htmlContent += `
         <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #e7e5e4; text-align: center; font-size: 10px; color: #a8a29e; font-family: monospace;">
           Dibuat secara otomatis dengan MimbarPro AI - by Joze Rizal
         </div>
       </div>
     `;
 
-    return html;
-  };
-
-  const handleDownloadPdf = () => {
-    setIsDownloading(true);
-
-    const htmlContent = generatePdfHtmlString();
-
-    // 1. Buat iframe isolasi agar kebal dari Tailwind dan error oklch
+    // 1. Membangun ruang kedap udara untuk memproses HTML
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
-    iframe.style.left = '-10000px'; 
-    iframe.style.width = '1024px'; // Paksa ukuran desktop
-    iframe.style.height = '1000px';
+    iframe.style.top = '0';
+    iframe.style.left = '-10000px'; // Tersembunyi tapi nyata
+    iframe.style.width = '1024px';
+    iframe.style.height = '100vh';
     document.body.appendChild(iframe);
 
-    const idoc = iframe.contentWindow?.document;
+    const idoc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!idoc) {
-      alert("Gagal memproses dokumen. Coba refresh halaman.");
+      alert("Sistem gagal menyiapkan ruang dokumen.");
       setIsDownloading(false);
       return;
     }
 
-    // 2. Suntikkan HTML murni dan Script PDF ke dalam iframe
+    // 2. Fungsi penangkap Blob (kode PDF) yang dikirim dari Iframe
+    const messageHandler = (event: MessageEvent) => {
+      if (event.data && typeof event.data === 'object') {
+        if (event.data.type === 'pdf_success') {
+          try {
+            // Ini adalah sihirnya: Mengubah string data menjadi Object URL nyata
+            // yang diizinkan untuk didownload oleh SEMUA HP Android/iOS
+            const dataURI = event.data.data;
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            const blobUrl = URL.createObjectURL(blob);
+
+            // Eksekusi Download di layar utama, bukan di dalam Iframe
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            
+            setTimeout(() => {
+              document.body.removeChild(link);
+              URL.revokeObjectURL(blobUrl);
+            }, 100);
+          } catch (e) {
+            alert("Terjadi gangguan saat menyimpan ke perangkat Anda.");
+          }
+          cleanup();
+        } else if (event.data.type === 'pdf_error') {
+          alert("Gagal memproses naskah: " + event.data.message);
+          cleanup();
+        }
+      }
+    };
+
+    const cleanup = () => {
+      setIsDownloading(false);
+      window.removeEventListener('message', messageHandler);
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 500);
+    };
+
+    window.addEventListener('message', messageHandler);
+
+    // 3. Eksekusi PDF terisolasi di dalam Iframe
     idoc.open();
     idoc.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+          <script 
+            src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+            onerror="window.parent.postMessage({type: 'pdf_error', message: 'Koneksi internet bermasalah saat memuat library PDF.'}, '*')"
+          ></script>
         </head>
         <body style="margin: 0; background: #ffffff;">
           <div id="pdf-root">${htmlContent}</div>
+          <script>
+            window.onload = function() {
+              try {
+                var element = document.getElementById('pdf-root');
+                var opt = {
+                  margin: [15, 10, 15, 10],
+                  image: { type: 'jpeg', quality: 0.98 },
+                  html2canvas: { scale: 1.5, useCORS: true, logging: false },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                // Alih-alih .save(), kita jadikan data mentah lalu lempar ke layar utama
+                html2pdf().set(opt).from(element).toPdf().get('pdf').then(function(pdf) {
+                  var dataUri = pdf.output('datauristring');
+                  window.parent.postMessage({ type: 'pdf_success', data: dataUri }, '*');
+                }).catch(function(err) {
+                  window.parent.postMessage({ type: 'pdf_error', message: err.message || String(err) }, '*');
+                });
+              } catch(e) {
+                window.parent.postMessage({ type: 'pdf_error', message: e.message }, '*');
+              }
+            };
+          </script>
         </body>
       </html>
     `);
     idoc.close();
-
-    // 3. Eksekusi PDF dari dalam iframe secara otomatis
-    const checkAndGenerate = () => {
-      // @ts-ignore
-      if (iframe.contentWindow && iframe.contentWindow.html2pdf) {
-        const element = idoc.getElementById('pdf-root');
-        const opt = {
-          margin: [15, 10, 15, 10], // Margin atas, kanan, bawah, kiri
-          filename: `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`,
-          image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 1.5, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        // @ts-ignore
-        iframe.contentWindow.html2pdf().set(opt).from(element).save().then(() => {
-          setIsDownloading(false);
-          document.body.removeChild(iframe); // Bersihkan iframe setelah selesai
-        }).catch((err: any) => {
-          console.error(err);
-          alert("Gagal memproses PDF.");
-          setIsDownloading(false);
-          document.body.removeChild(iframe);
-        });
-      } else {
-        setTimeout(checkAndGenerate, 200); // Tunggu sampai script termuat
-      }
-    };
-
-    setTimeout(checkAndGenerate, 200);
   };
 
   return (
@@ -671,7 +717,7 @@ export default function App() {
           >
             <Loader2 className="w-16 h-16 animate-spin mb-6 text-amber-400" />
             <h3 className="font-serif font-bold text-2xl mb-2">Menyiapkan Dokumen</h3>
-            <p className="text-emerald-200/80 text-sm px-8 text-center">Sedang merapikan tata letak PDF Anda, mohon tunggu...</p>
+            <p className="text-emerald-200/80 text-sm px-8 text-center">Sedang merapikan tata letak PDF Anda, mohon tunggu sebentar...</p>
           </motion.div>
         )}
       </AnimatePresence>
