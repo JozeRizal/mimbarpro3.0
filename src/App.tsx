@@ -224,12 +224,11 @@ export default function App() {
     ));
   };
 
-  // Render konten yang bisa dipakai untuk layar HP maupun untuk di-convert ke PDF
   const renderScriptContent = (isForPdf = false) => {
-    const fSize = isForPdf ? '13pt' : `${fontSize}px`; // Ukuran font PDF dibuat lebih terbaca
+    const fSize = isForPdf ? '13pt' : `${fontSize}px`; 
 
     return (
-      <div className={cn(isForPdf && "text-black bg-white")}>
+      <div className={cn(isForPdf && "text-black bg-white w-full max-w-4xl")}>
         {isForPdf && (
           <div className="text-center border-b-2 border-emerald-900 pb-4 mb-8">
             <h1 className="text-3xl font-bold font-serif text-emerald-900">Naskah Kultum Ramadhan</h1>
@@ -242,7 +241,7 @@ export default function App() {
           const cue = block.cue || block.cues || (block.type === 'cues' ? (block.text || block.content) : null);
 
           return (
-            <div key={idx} className={cn("mb-8", isForPdf && "break-inside-avoid")}>
+            <div key={idx} className={cn("mb-8", isForPdf && "break-inside-avoid page-break-inside-avoid")}>
               {cue && (
                 <div className="mb-4 bg-amber-50 border-l-4 border-amber-500 p-2 text-xs font-bold uppercase text-amber-800">
                   💡 {cue}
@@ -302,11 +301,10 @@ export default function App() {
     );
   };
 
-  // --- SOLUSI UX MOBILE: ONE-CLICK DOWNLOAD ---
   const handleDownloadPdf = () => {
     setIsDownloading(true);
     
-    // Kita mengambil container rahasia yang tersembunyi namun sudah dirender utuh
+    // Pastikan kita memanggil ID yang benar dari DOM
     const element = document.getElementById('pdf-secret-container');
     
     if (!element) {
@@ -315,19 +313,22 @@ export default function App() {
       return;
     }
 
-    // Memanggil library PDF yang sangat umum digunakan
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
     
     script.onload = () => {
-      // OPTIMASI MOBILE: Scale diturunkan menjadi 1.2 agar ringan di RAM HP tapi tulisan tetap tajam
+      // OPTIMASI KHUSUS MOBILE
       const opt = {
-        margin: [15, 15, 15, 15], 
+        margin: 10, // Diubah menjadi angka tunggal agar stabil di semua browser HP
         filename: `Naskah_MimbarPro_${topic.substring(0, 15).replace(/\s+/g, '_')}.pdf`,
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 1.2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        html2canvas: { 
+          scale: 1.5, // Kualitas medium-high, tidak memberatkan RAM HP
+          useCORS: true, 
+          logging: false,
+          windowWidth: 1024 // Paksa render di ukuran desktop agar teks tidak terlipat berantakan
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       // @ts-ignore
@@ -335,13 +336,13 @@ export default function App() {
         setIsDownloading(false);
       }).catch((err: any) => {
         console.error("PDF Error:", err);
-        alert("Gagal memproses PDF di perangkat ini. Coba gunakan browser Chrome.");
+        alert(`Gagal memproses PDF: ${err.message || 'Error tidak diketahui'}. Silakan coba lagi.`);
         setIsDownloading(false);
       });
     };
     
     script.onerror = () => {
-      alert("Gagal memuat sistem PDF. Pastikan internet Anda stabil.");
+      alert("Gagal memuat sistem pembuat PDF. Pastikan internet Anda stabil.");
       setIsDownloading(false);
     };
     
@@ -567,12 +568,12 @@ export default function App() {
       </main>
 
       {/* CONTAINER RAHASIA UNTUK PDF 
-          Sengaja di-render di balik layar (z-index negatif dan opacity 0)
-          agar strukturnya siap dibaca oleh script PDF tanpa merusak tampilan HP.
+          Digeser 10.000 pixel ke kiri agar tidak terlihat di layar,
+          tapi statusnya TETAP DIREKAYASA OLEH BROWSER dengan opacity 100%
       */}
       {step === 'result' && (
-        <div className="fixed top-0 left-0 w-[210mm] z-[-50] opacity-0 pointer-events-none">
-          <div id="pdf-secret-container" className="p-8 bg-white">
+        <div className="absolute top-[0px] left-[-10000px] w-[210mm] z-0 overflow-visible">
+          <div id="pdf-secret-container" className="p-8 bg-white text-black min-h-[297mm]">
             {renderScriptContent(true)}
           </div>
         </div>
@@ -589,7 +590,7 @@ export default function App() {
           >
             <Loader2 className="w-16 h-16 animate-spin mb-6 text-amber-400" />
             <h3 className="font-serif font-bold text-2xl mb-2">Menyiapkan Dokumen</h3>
-            <p className="text-emerald-200/80 text-sm">Sedang merapikan tata letak PDF Anda...</p>
+            <p className="text-emerald-200/80 text-sm px-8 text-center">Sedang memproses PDF, mohon jangan tutup halaman ini...</p>
           </motion.div>
         )}
       </AnimatePresence>
