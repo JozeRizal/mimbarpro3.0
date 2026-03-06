@@ -181,8 +181,15 @@ export default function App() {
           responseMimeType: "application/json"
            maxOutputTokens: 60000,
             temperature: 0.7
-        }
-      });
+      // TAMBAHKAN INI: Mematikan filter keamanan Google agar naskah agama tidak disensor
+            safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ]
+          }
+        });
 
       const raw = response.text;
       const parsed = JSON.parse(raw);
