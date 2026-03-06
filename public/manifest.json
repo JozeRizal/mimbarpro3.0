@@ -1,1 +1,17 @@
-
+{
+  "name": "Khutbah Master",
+  "short_name": "Khutbah Master",
+  "description": "Asisten Mimbar & Teleprompter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#800000",
+  "theme_color": "#800000",
+  "icons": [
+    {
+      "src": "/pwa-icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
