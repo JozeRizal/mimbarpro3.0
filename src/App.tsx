@@ -178,7 +178,7 @@ export default function App() {
         contents: [{ parts: [{ text: userQuery }] }],
         config: {
           systemInstruction: systemPrompt,
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
            maxOutputTokens: 60000,
             temperature: 0.7
       // TAMBAHKAN INI: Mematikan filter keamanan Google agar naskah agama tidak disensor
