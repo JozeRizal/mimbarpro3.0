@@ -180,7 +180,7 @@ export default function App() {
           systemInstruction: systemPrompt,
           responseMimeType: "application/json",
            maxOutputTokens: 60000,
-            temperature: 0.7
+            temperature: 0.7,
       // TAMBAHKAN INI: Mematikan filter keamanan Google agar naskah agama tidak disensor
             safetySettings: [
               { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
